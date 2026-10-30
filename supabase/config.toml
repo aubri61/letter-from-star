@@ -1,0 +1,14 @@
+project_id = "letter-from-star-local"
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage"]
+[db]
+port = 54322
+major_version = 17
+[auth]
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = ["http://127.0.0.1:3000/auth/callback"]
+[functions.daily-letters]
+verify_jwt = false
+# Function verifies a dedicated secret itself; it never accepts public callers.

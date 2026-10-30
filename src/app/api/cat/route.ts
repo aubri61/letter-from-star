@@ -1,0 +1,125 @@
+import {
+  requireUser,
+  apiFailure,
+  ApiError,
+  uuid,
+  boundedBody,
+} from "@/lib/api";
+import { imageExtension, validatePhoto } from "@/lib/domain";
+export async function POST(request: Request) {
+  const uploaded: string[] = [];
+  let cleanup: Awaited<ReturnType<typeof requireUser>>["db"] | null = null;
+  try {
+    const { db, user } = await requireUser(request);
+    cleanup = db;
+    if (Number(request.headers.get("content-length") || 0) > 27 * 1024 * 1024)
+      throw new ApiError("사진 용량을 줄여 주세요.");
+    const body = await boundedBody(request, 27 * 1024 * 1024);
+    const form = await new Response(body.buffer, {
+      headers: { "Content-Type": request.headers.get("content-type") || "" },
+    }).formData();
+    const text = (key: string, max: number) => {
+      const v = form.get(key);
+      if (typeof v !== "string" || v.length > max)
+        throw new ApiError("입력 내용을 확인해 주세요.");
+      return v.trim();
+    };
+    const name = text("name", 30);
+    if (!name) throw new ApiError("고양이 이름을 적어 주세요.");
+    const personality = text("personality", 500),
+      favorites = text("favorites", 500),
+      memories = text("memories", 3000);
+    const raw: unknown = JSON.parse(text("existing", 5000));
+    if (!Array.isArray(raw) || !raw.every(uuid))
+      throw new ApiError("사진 목록을 확인해 주세요.");
+    const existing = raw as string[];
+    const files = form.getAll("photos");
+    if (
+      existing.length + files.length < 1 ||
+      existing.length + files.length > 5
+    )
+      throw new ApiError("사진은 1~5장 등록해 주세요.");
+    const { data: current, error: lookup } = await db
+      .from("cats")
+      .select("id,cat_photos(id,storage_path)")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (lookup) throw lookup;
+    const old = (current?.cat_photos ?? []) as {
+      id: string;
+      storage_path: string;
+    }[];
+    const paths = existing.map((id) => {
+      const p = old.find((p) => p.id === id);
+      if (!p) throw new ApiError("등록된 사진을 확인해 주세요.");
+      return p.storage_path;
+    });
+    for (const file of files) {
+      if (!(file instanceof File))
+        throw new ApiError("사진 형식을 확인해 주세요.");
+      const invalid = validatePhoto(file);
+      if (invalid) throw new ApiError(invalid);
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const ext = imageExtension(bytes);
+      if (!ext) throw new ApiError("올바른 이미지 파일을 선택해 주세요.");
+      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+      const { error } = await db.storage
+        .from("cat-photos")
+        .upload(path, bytes, {
+          contentType: ext === "jpg" ? "image/jpeg" : `image/${ext}`,
+          upsert: false,
+        });
+      if (error) throw error;
+      uploaded.push(path);
+      paths.push(path);
+    }
+    const primary = Number(form.get("primary"));
+    if (!Number.isInteger(primary) || primary < 0 || primary >= paths.length)
+      throw new ApiError("대표 사진을 선택해 주세요.");
+    const { error } = await db.rpc("save_cat", {
+      p_name: name,
+      p_personality: personality,
+      p_favorites: favorites,
+      p_memories: memories,
+      p_paths: paths,
+      p_primary: primary,
+    });
+    if (error) throw error;
+    uploaded.length = 0;
+    const removed = old
+      .filter((p) => !paths.includes(p.storage_path))
+      .map((p) => p.storage_path);
+    if (removed.length) {
+      const { error: cleanupError } = await db.storage
+        .from("cat-photos")
+        .remove(removed);
+      if (cleanupError) console.warn("Photo cleanup pending");
+    }
+    return Response.json({ ok: true });
+  } catch (e) {
+    if (cleanup && uploaded.length)
+      await cleanup.storage.from("cat-photos").remove(uploaded);
+    return apiFailure(e);
+  }
+}
+export async function DELETE(request: Request) {
+  try {
+    const { db, user } = await requireUser(request);
+    const { data, error } = await db
+      .from("cats")
+      .select("cat_photos(storage_path)")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (error) throw error;
+    const paths = (data?.cat_photos ?? []) as { storage_path: string }[];
+    const { error: removeError } = await db.rpc("delete_cat");
+    if (removeError) throw removeError;
+    if (paths.length)
+      await db.storage
+        .from("cat-photos")
+        .remove(paths.map((p) => p.storage_path));
+    return Response.json({ ok: true });
+  } catch (e) {
+    return apiFailure(e);
+  }
+}

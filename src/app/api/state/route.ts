@@ -1,0 +1,70 @@
+import { requireUser, apiFailure } from "@/lib/api";
+import type { Cat, Letter, Photo, PostofficeState } from "@/lib/domain";
+export const dynamic = "force-dynamic";
+export async function GET() {
+  try {
+    const { db, user } = await requireUser();
+    const [cats, letters, preferences, jobs] = await Promise.all([
+      db
+        .from("cats")
+        .select("*,cat_photos(*)")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      db
+        .from("letters")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(50),
+      db
+        .from("user_preferences")
+        .select("daily_letters_enabled")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      db
+        .from("letter_jobs")
+        .select("id")
+        .eq("status", "processing")
+        .gte("started_at", new Date(Date.now() - 10 * 60 * 1000).toISOString())
+        .limit(1),
+    ]);
+    for (const r of [cats, letters, preferences, jobs])
+      if (r.error) throw r.error;
+    let cat: Cat | null = null;
+    if (cats.data) {
+      const row = cats.data;
+      const photos: Photo[] = await Promise.all(
+        (row.cat_photos as Photo[])
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map(async (photo) => {
+            const { data, error } = await db.storage
+              .from("cat-photos")
+              .createSignedUrl(photo.storage_path, 900);
+            if (error) throw error;
+            return { ...photo, url: data.signedUrl };
+          }),
+      );
+      cat = {
+        id: row.id,
+        name: row.name,
+        personality: row.personality,
+        favorites: row.favorites,
+        memories: row.memories,
+        photos,
+      };
+    }
+    const state: PostofficeState = {
+      cat,
+      letters: letters.data as Letter[],
+      dailyEnabled: preferences.data?.daily_letters_enabled ?? false,
+      userName: user.user_metadata?.full_name?.split(" ")[0] || "집사",
+      generating: !!jobs.data?.length,
+    };
+    return Response.json(state, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  } catch (e) {
+    return apiFailure(e);
+  }
+}
