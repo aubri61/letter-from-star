@@ -115,3 +115,20 @@ test("upload validation, primary selection, removal and profile save", async ({
     page.getByRole("heading", { name: "달이에게", exact: true }),
   ).toBeVisible();
 });
+
+test("OAuth Site URL fallback redirects without rendering its code and favicon exists", async ({
+  request,
+}) => {
+  const callback = await request.get("/?code=test-only-oauth-code", {
+    maxRedirects: 0,
+  });
+  expect(callback.status()).toBe(307);
+  expect(callback.headers().location).toBe(
+    "/auth/callback?code=test-only-oauth-code",
+  );
+  const landing = await request.get("/");
+  expect(landing.status()).toBe(200);
+  const icon = await request.get("/favicon.ico");
+  expect(icon.status()).toBe(200);
+  expect(icon.headers()["content-type"]).toContain("image");
+});

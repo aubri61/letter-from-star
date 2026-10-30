@@ -9,6 +9,10 @@ export async function GET(request: Request) {
   if (code && db) {
     const { error } = await db.auth.exchangeCodeForSession(code);
     if (!error) return NextResponse.redirect(new URL("/postoffice", origin));
+    console.warn("OAuth code exchange failed", {
+      code: error.code,
+      status: error.status,
+    });
   }
   return NextResponse.redirect(new URL("/?notice=auth", origin));
 }
