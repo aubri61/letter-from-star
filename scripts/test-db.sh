@@ -9,9 +9,9 @@ trap cleanup EXIT INT TERM
 "$PG_BIN/pg_ctl" -D "$TEST_DIR/data" -l "$TEST_DIR/server.log" -o "-p $TEST_PORT -h 127.0.0.1 -k $TEST_DIR -c wal_level=logical" start >/dev/null
 export PGHOST=127.0.0.1 PGPORT=$TEST_PORT PGDATABASE=postgres
 psql -X -q -v ON_ERROR_STOP=1 -f tests/db-bootstrap.sql
-psql -X -q -v ON_ERROR_STOP=1 -f supabase/migrations/20260311070817_postoffice_schema_auth_storage.sql
-psql -X -q -v ON_ERROR_STOP=1 -f supabase/migrations/20260316055743_postoffice_daily_delivery_jobs.sql
-psql -X -q -v ON_ERROR_STOP=1 -f supabase/migrations/20260317015829_postoffice_preferences_permissions.sql
+for task_migration in supabase/migrations/*.sql; do
+  psql -X -q -v ON_ERROR_STOP=1 -f "$task_migration"
+done
 psql -X -q -v ON_ERROR_STOP=1 -f tests/db-security.sql
 node --import tsx --test tests/db/delivery.integration.ts
 printf 'PASS: isolated PostgreSQL RLS, constraints, RPC and concurrent delivery tests\n'

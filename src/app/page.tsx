@@ -1,11 +1,20 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { oauthReturnPath } from "@/lib/oauth-return";
 import { Icon, Landscape, Stamp } from "@/components/illustrations";
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ notice?: string }>;
+  searchParams: Promise<{
+    notice?: string;
+    code?: string | string[];
+    error?: string | string[];
+  }>;
 }) {
-  const { notice } = await searchParams;
+  const params = await searchParams;
+  const callback = oauthReturnPath(params);
+  if (callback) redirect(callback);
+  const { notice } = params;
   const preview =
     process.env.NODE_ENV === "development" &&
     process.env.ENABLE_DEV_PREVIEW === "true";

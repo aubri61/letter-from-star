@@ -11,8 +11,9 @@ test("landing and protected routes never expose account data", async ({
     path: `test-results/screenshots/${test.info().project.name}-landing.png`,
     fullPage: true,
   });
-  await page.goto("/postoffice");
-  await expect(page).toHaveURL(/notice=setup|auth\/login/);
+  const protectedPage = await request.get("/postoffice", { maxRedirects: 0 });
+  expect(protectedPage.status()).toBe(307);
+  expect(protectedPage.headers().location).toMatch(/notice=setup|auth\/login/);
   const response = await request.get("/api/state");
   expect([401, 503]).toContain(response.status());
   const blocked = await request.post("/api/letters", {
@@ -113,4 +114,21 @@ test("upload validation, primary selection, removal and profile save", async ({
   await expect(
     page.getByRole("heading", { name: "달이에게", exact: true }),
   ).toBeVisible();
+});
+
+test("OAuth Site URL fallback redirects without rendering its code and favicon exists", async ({
+  request,
+}) => {
+  const callback = await request.get("/?code=test-only-oauth-code", {
+    maxRedirects: 0,
+  });
+  expect(callback.status()).toBe(307);
+  expect(callback.headers().location).toBe(
+    "/auth/callback?code=test-only-oauth-code",
+  );
+  const landing = await request.get("/");
+  expect(landing.status()).toBe(200);
+  const icon = await request.get("/favicon.ico");
+  expect(icon.status()).toBe(200);
+  expect(icon.headers()["content-type"]).toContain("image");
 });

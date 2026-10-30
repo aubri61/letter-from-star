@@ -1,4 +1,5 @@
 import "server-only";
+import { requestOrigin } from "./request-origin";
 import { serverSupabase } from "./supabase/server";
 export class ApiError extends Error {
   constructor(
@@ -11,7 +12,7 @@ export class ApiError extends Error {
 export async function requireUser(request?: Request) {
   if (request && !["GET", "HEAD"].includes(request.method)) {
     const origin = request.headers.get("origin");
-    if (!origin || origin !== new URL(request.url).origin)
+    if (!origin || origin !== requestOrigin(request))
       throw new ApiError("요청 출처를 확인할 수 없어요.", 403);
   }
   const db = await serverSupabase();
