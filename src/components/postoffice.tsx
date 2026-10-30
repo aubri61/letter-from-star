@@ -717,11 +717,6 @@ export function Postoffice({
                       <span />
                     </button>
                   </div>
-                  <p className="soft-note">
-                    편지는 AI가 남겨 주신 추억을 바탕으로 상상한 글이에요. 실제
-                    고양이가 보낸 메시지는 아니에요. 알림은 이 페이지가 열려
-                    있을 때 표시돼요.
-                  </p>
                   <Link className="button secondary" href={link("/cat")}>
                     고양이와 추억 수정하기
                   </Link>
