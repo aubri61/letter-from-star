@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from "react";
 import { Icon, Stamp, CatDrawing } from "./illustrations";
 import { Empty } from "./postoffice-ui";
 import { formatDate, type Cat, type Letter } from "@/lib/domain";
+import { ReplyNowButton } from "./reply-now-button";
 export function LetterReader({
   letter,
   cat,
@@ -12,6 +13,10 @@ export function LetterReader({
   onRead,
   onError,
   previous,
+  onReply,
+  replyHref,
+  replyVersions = [],
+  providerLabel,
 }: {
   letter?: Letter;
   cat: Cat | null;
@@ -19,6 +24,10 @@ export function LetterReader({
   onRead: (id: string) => Promise<void>;
   onError: (text: string) => void;
   previous?: Letter;
+  onReply?: (id: string) => Promise<void>;
+  replyHref?: string;
+  replyVersions?: Letter[];
+  providerLabel?: string;
 }) {
   const readId = useRef<string | null>(null);
   const [retry, setRetry] = useState(0);
@@ -45,11 +54,27 @@ export function LetterReader({
         label="보관함으로"
       />
     );
+  const sourceId =
+    letter.direction === "TO_CAT" ? letter.id : letter.reply_to_letter_id;
   return (
     <>
       <Link className="back-link" href={`${base}/archive`}>
         ← 편지 보관함으로
       </Link>
+      {replyVersions.length > 0 && (
+        <nav className="reply-versions" aria-label="같은 편지에 온 답장">
+          <span>같은 편지에 온 답장</span>
+          {replyVersions.map((version) => (
+            <Link
+              key={version.id}
+              href={`${base}/letters/${version.id}`}
+              aria-current={version.id === letter.id ? "page" : undefined}
+            >
+              {version.ai_provider === "gemini" ? "Gemini" : "Groq"} 답장
+            </Link>
+          ))}
+        </nav>
+      )}
       <article className="reading-paper">
         <div className="paper-address">
           <div className="sender-avatar">
@@ -85,11 +110,6 @@ export function LetterReader({
             {letter.direction === "FROM_CAT" ? cat?.name : "너의 집사"}
           </span>
         </div>
-        {letter.direction === "FROM_CAT" && (
-          <p className="ai-note">
-            소중한 추억을 바탕으로 AI가 상상한 편지예요.
-          </p>
-        )}
         {!letter.read_at && letter.direction === "FROM_CAT" && (
           <button
             className="text-link"
@@ -110,10 +130,23 @@ export function LetterReader({
         ) : (
           <span />
         )}
-        <Link className="button" href={`${base}/compose`}>
-          <Icon name="pen" size={17} />
-          답장 쓰기
-        </Link>
+        <div className="reading-action-group">
+          {sourceId && onReply && (
+            <ReplyNowButton
+              key={letter.id}
+              sourceId={sourceId}
+              onReply={onReply}
+              replyHref={replyHref}
+              providerLabel={providerLabel}
+            />
+          )}
+          {(letter.direction === "FROM_CAT" || !onReply) && (
+            <Link className="button" href={`${base}/compose`}>
+              <Icon name="pen" size={17} />
+              {letter.direction === "FROM_CAT" ? "답장 쓰기" : "새 편지 쓰기"}
+            </Link>
+          )}
+        </div>
       </div>
     </>
   );

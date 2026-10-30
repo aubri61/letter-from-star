@@ -81,8 +81,8 @@ export default async function Page({
             </p>
           )}
           <div className="landing-footnote">
-            <Icon name="paw" size={17} /> 추억을 바탕으로 AI가 상상한 따뜻한
-            편지를 전해요.
+            <Icon name="paw" size={17} /> 고별 우체국에서, 너에게 보내는 작은
+            안부.
           </div>
         </div>
         <div className="landing-postcard">

@@ -1,16 +1,20 @@
 import { createClient } from "npm:@supabase/supabase-js@2.98.0";
 import { processBatch, type JobStore, type Job } from "../_shared/worker.ts";
-import type { MemoryContext } from "../_shared/generation.ts";
+import {
+  aiConfig,
+  generateConfiguredLetter,
+  type MemoryContext,
+} from "../_shared/generation.ts";
 Deno.serve(async (request: Request) => {
   if (request.method !== "POST")
     return new Response("Method not allowed", { status: 405 });
   const secret = Deno.env.get("LETTER_CRON_SECRET");
   if (!secret || request.headers.get("x-letter-cron-secret") !== secret)
     return new Response("Unauthorized", { status: 401 });
-  const key = Deno.env.get("OPENAI_API_KEY"),
-    url = Deno.env.get("SUPABASE_URL"),
+  const config = aiConfig((name) => Deno.env.get(name));
+  const url = Deno.env.get("SUPABASE_URL"),
     service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!key || !url || !service)
+  if (!config.key || !url || !service)
     return new Response("Worker is not configured", { status: 503 });
   const db = createClient(url, service, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -39,9 +43,20 @@ Deno.serve(async (request: Request) => {
         .order("created_at", { ascending: false })
         .limit(4);
       check(recentError);
+      const { data: sent, error: sentError } = await db
+        .from("letters")
+        .select("title,content")
+        .eq("cat_id", job.cat_id)
+        .eq("direction", "TO_CAT")
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      check(sentError);
       return {
         ...cat,
         recent: recent || [],
+        replyTo: sent || undefined,
         date: job.delivery_date,
       } as MemoryContext;
     },
@@ -66,10 +81,8 @@ Deno.serve(async (request: Request) => {
   };
   try {
     return Response.json(
-      await processBatch(
-        store,
-        key,
-        Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini-2025-04-14",
+      await processBatch(store, config.key, config.model, (context) =>
+        generateConfiguredLetter(context, config),
       ),
     );
   } catch {

@@ -20,6 +20,7 @@ import { PageHeading, Empty, LetterCard } from "./postoffice-ui";
 import { Composer } from "./composer";
 import { CatForm } from "./cat-form";
 import { LetterReader } from "./letter-reader";
+import { ReplyNowButton } from "./reply-now-button";
 import { fileDataUrl } from "@/lib/photo-client";
 const PREVIEW_KEY = "little-star-preview-v1";
 async function api(url: string, init?: RequestInit) {
@@ -183,6 +184,33 @@ export function Postoffice({
     };
   }, [page, preview, screen, state]);
   const link = (suffix: string) => base + suffix;
+  const latestSent = state?.letters.find((l) => l.direction === "TO_CAT");
+  const canReplyNow = !preview && state?.instantReplyEnabled;
+  const providerLabel = state?.aiProvider === "groq" ? "Groq" : "Gemini";
+  const currentLetter = state?.letters.find((l) => l.id === screen[1]);
+  const replySource =
+    currentLetter?.direction === "TO_CAT"
+      ? currentLetter.id
+      : currentLetter?.reply_to_letter_id;
+  const replyVersions =
+    state?.letters.filter(
+      (l) => !!replySource && l.reply_to_letter_id === replySource,
+    ) || [];
+  const replyForProvider = (sourceId: string) =>
+    state?.letters.find(
+      (l) =>
+        l.reply_to_letter_id === sourceId && l.ai_provider === state.aiProvider,
+    );
+  const requestReply = async (letterId: string) => {
+    const result = await api("/api/letters/reply", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ letterId }),
+    });
+    await reload();
+    notify("추억을 담은 답장이 도착했어요.");
+    router.push(link(`/letters/${result.id}`));
+  };
   return (
     <>
       <header className="site-header">
@@ -409,6 +437,29 @@ export function Postoffice({
                   </Link>
                 </div>
                 <section className="recent-section">
+                  {canReplyNow && latestSent && (
+                    <div className="instant-reply-card">
+                      <div>
+                        <strong>기다리기 전에, 작은 안부를 먼저</strong>
+                        <p>
+                          최근 보낸 편지에 바로 답장을 받아 보세요. 오전 9시
+                          예약 수신 설정은 바뀌지 않아요.
+                        </p>
+                      </div>
+                      <ReplyNowButton
+                        sourceId={latestSent.id}
+                        onReply={requestReply}
+                        providerLabel={providerLabel}
+                        replyHref={
+                          replyForProvider(latestSent.id)
+                            ? link(
+                                `/letters/${replyForProvider(latestSent.id)!.id}`,
+                              )
+                            : undefined
+                        }
+                      />
+                    </div>
+                  )}
                   <div className="section-heading">
                     <h2>
                       차곡차곡 쌓이는 마음 <span>최근 편지</span>
@@ -494,6 +545,7 @@ export function Postoffice({
                 <Composer
                   cat={state.cat}
                   onSend={async (title, content, requestId) => {
+                    let sentId: string | undefined;
                     if (preview) {
                       if (!state.letters.some((l) => l.id === requestId)) {
                         savePreview({
@@ -519,11 +571,12 @@ export function Postoffice({
                         });
                       }
                     } else {
-                      await api("/api/letters", {
+                      const sent = await api("/api/letters", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ title, content, requestId }),
                       });
+                      sentId = sent.id;
                       await reload();
                     }
                     notify(
@@ -531,7 +584,9 @@ export function Postoffice({
                         ? "편지를 미리보기 보관함에 담았어요."
                         : "편지가 우체통에 잘 도착했어요.",
                     );
-                    router.push(link("/archive"));
+                    router.push(
+                      link(sentId ? `/letters/${sentId}` : "/archive"),
+                    );
                   }}
                 />
               ))}
@@ -668,6 +723,14 @@ export function Postoffice({
                 base={base}
                 onRead={markRead}
                 onError={notify}
+                onReply={canReplyNow ? requestReply : undefined}
+                providerLabel={providerLabel}
+                replyVersions={replyVersions}
+                replyHref={
+                  replySource && replyForProvider(replySource)
+                    ? link(`/letters/${replyForProvider(replySource)!.id}`)
+                    : undefined
+                }
                 previous={state.letters
                   .filter((l) => l.direction === "FROM_CAT")
                   .find((l, i, all) => all[i - 1]?.id === screen[1])}
@@ -789,7 +852,6 @@ export function Postoffice({
         <span>
           <Icon name="paw" size={14} /> 기억은 오래, 마음은 가까이.
         </span>
-        <span>AI가 추억을 바탕으로 상상한 편지입니다.</span>
       </footer>
       <div className="toast-region" aria-live="polite" aria-atomic="true">
         {toast && (

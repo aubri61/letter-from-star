@@ -32,7 +32,7 @@ export async function processBatch(
     } catch (error) {
       const code =
         error instanceof Error &&
-        /^(openai_http_\d{3}|invalid_output|incomplete_output|invalid_json)$/.test(
+        /^((groq|gemini)_http_\d{3}|invalid_output|incomplete_output|invalid_json)$/.test(
           error.message,
         )
           ? error.message

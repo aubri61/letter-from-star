@@ -13,5 +13,5 @@ for task_migration in supabase/migrations/*.sql; do
   psql -X -q -v ON_ERROR_STOP=1 -f "$task_migration"
 done
 psql -X -q -v ON_ERROR_STOP=1 -f tests/db-security.sql
-node --import tsx --test tests/db/delivery.integration.ts
+node --import tsx --test --test-concurrency=1 tests/db/*.integration.ts
 printf 'PASS: isolated PostgreSQL RLS, constraints, RPC and concurrent delivery tests\n'

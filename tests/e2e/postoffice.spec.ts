@@ -1,4 +1,69 @@
 import { test, expect } from "@playwright/test";
+import { previewState } from "../../src/lib/preview";
+test("Gemini and Groq versions open independently without the removed notice", async ({
+  page,
+}) => {
+  const state = previewState();
+  const groq = state.letters.find((l) => l.direction === "FROM_CAT")!;
+  groq.reply_to_letter_id = "sample-sent";
+  groq.ai_provider = "groq";
+  state.letters.unshift({
+    ...groq,
+    id: "sample-gemini",
+    title: "집사야, 앞발로 썼어!",
+    ai_provider: "gemini",
+  });
+  await page.addInitScript(
+    (data) =>
+      localStorage.setItem("little-star-preview-v1", JSON.stringify(data)),
+    state,
+  );
+  await page.goto("/preview/letters/sample-letter");
+  const versions = page.getByRole("navigation", {
+    name: "같은 편지에 온 답장",
+  });
+  await expect(
+    versions.getByRole("link", { name: "Groq 답장" }),
+  ).toHaveAttribute("aria-current", "page");
+  await versions.getByRole("link", { name: "Gemini 답장" }).click();
+  await expect(
+    page.getByRole("heading", { name: "집사야, 앞발로 썼어!" }),
+  ).toBeVisible();
+  await expect(
+    versions.getByRole("link", { name: "Gemini 답장" }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(page.getByText(/AI가 상상한|실제 고양이가/)).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: `test-results/screenshots/${test.info().project.name}-reply-versions.png`,
+    fullPage: true,
+  });
+});
+test("instant reply requires the account session and same-origin requests", async ({
+  page,
+  request,
+}) => {
+  const blocked = await request.post("/api/letters/reply", {
+    data: { letterId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+  });
+  expect(blocked.status()).toBe(403);
+  const anonymous = await request.post("/api/letters/reply", {
+    headers: { Origin: "http://127.0.0.1:3000" },
+    data: { letterId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+  });
+  expect([401, 503]).toContain(anonymous.status());
+  await page.goto("/preview/letters/sample-sent");
+  await expect(
+    page.getByRole("heading", { name: "별아, 오늘도 네 생각이 났어" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "바로 답장 받기" }),
+  ).toHaveCount(0);
+});
 test("landing and protected routes never expose account data", async ({
   page,
   request,

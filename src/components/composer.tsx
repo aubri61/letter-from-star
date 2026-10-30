@@ -105,7 +105,7 @@ export function Composer({
         </div>
       </form>
       <p className="form-footnote">
-        첫 편지를 보내면 다음 오전 9시부터 매일 한 통의 AI 편지가 찾아와요.
+        첫 편지를 보내면 다음 오전 9시부터 매일 한 통의 편지가 찾아와요.
         설정에서 언제든 쉬어 갈 수 있어요.
       </p>
     </>

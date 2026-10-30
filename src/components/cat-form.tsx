@@ -157,7 +157,7 @@ export function CatForm({
             )}
           </div>
           <p className="field-hint">
-            사진은 비공개로 보관하며, AI에 전달하지 않아요.
+            사진은 나만 볼 수 있도록 비공개로 보관해요.
           </p>
         </fieldset>
         <fieldset disabled={busy || processing} className="profile-fields">
