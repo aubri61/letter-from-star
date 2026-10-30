@@ -1041,6 +1041,8 @@ textarea::placeholder {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 .settings-paper h2 {
   font-size: 16px;
@@ -2042,4 +2044,35 @@ textarea::placeholder {
     opacity: 0;
     transform: translate(100px, -150px) rotate(12deg) scale(0.2);
   }
+}
+.instant-reply-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 22px;
+  margin-bottom: 28px;
+  background: var(--paper);
+}
+.instant-reply-card p,
+.reply-now-hint {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+.reply-now-control {
+  display: grid;
+  gap: 8px;
+  max-width: 100%;
+}
+.reply-now-control .button {
+  white-space: normal;
+}
+.reply-now-error {
+  color: #99513e;
+  font-size: 13px;
+  max-width: 320px;
 }

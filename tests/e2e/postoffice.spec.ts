@@ -1,4 +1,25 @@
 import { test, expect } from "@playwright/test";
+test("instant reply requires the account session and same-origin requests", async ({
+  page,
+  request,
+}) => {
+  const blocked = await request.post("/api/letters/reply", {
+    data: { letterId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+  });
+  expect(blocked.status()).toBe(403);
+  const anonymous = await request.post("/api/letters/reply", {
+    headers: { Origin: "http://127.0.0.1:3000" },
+    data: { letterId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+  });
+  expect([401, 503]).toContain(anonymous.status());
+  await page.goto("/preview/letters/sample-sent");
+  await expect(
+    page.getByRole("heading", { name: "별아, 오늘도 네 생각이 났어" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "바로 답장 받기" }),
+  ).toHaveCount(0);
+});
 test("landing and protected routes never expose account data", async ({
   page,
   request,

@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from "react";
 import { Icon, Stamp, CatDrawing } from "./illustrations";
 import { Empty } from "./postoffice-ui";
 import { formatDate, type Cat, type Letter } from "@/lib/domain";
+import { ReplyNowButton } from "./reply-now-button";
 export function LetterReader({
   letter,
   cat,
@@ -12,6 +13,8 @@ export function LetterReader({
   onRead,
   onError,
   previous,
+  onReply,
+  replyHref,
 }: {
   letter?: Letter;
   cat: Cat | null;
@@ -19,6 +22,8 @@ export function LetterReader({
   onRead: (id: string) => Promise<void>;
   onError: (text: string) => void;
   previous?: Letter;
+  onReply?: (id: string) => Promise<void>;
+  replyHref?: string;
 }) {
   const readId = useRef<string | null>(null);
   const [retry, setRetry] = useState(0);
@@ -110,10 +115,19 @@ export function LetterReader({
         ) : (
           <span />
         )}
-        <Link className="button" href={`${base}/compose`}>
-          <Icon name="pen" size={17} />
-          답장 쓰기
-        </Link>
+        {letter.direction === "TO_CAT" && onReply ? (
+          <ReplyNowButton
+            key={letter.id}
+            sourceId={letter.id}
+            onReply={onReply}
+            replyHref={replyHref}
+          />
+        ) : (
+          <Link className="button" href={`${base}/compose`}>
+            <Icon name="pen" size={17} />
+            {letter.direction === "FROM_CAT" ? "답장 쓰기" : "새 편지 쓰기"}
+          </Link>
+        )}
       </div>
     </>
   );

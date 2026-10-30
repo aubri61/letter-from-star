@@ -22,6 +22,7 @@ export type Letter = {
   read_at: string | null;
   created_at: string;
   delivery_date: string | null;
+  reply_to_letter_id?: string | null;
 };
 export type PostofficeState = {
   cat: Cat | null;
@@ -29,6 +30,7 @@ export type PostofficeState = {
   dailyEnabled: boolean;
   userName: string;
   generating: boolean;
+  instantReplyEnabled?: boolean;
 };
 export const MAX_PHOTOS = 5;
 export const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
