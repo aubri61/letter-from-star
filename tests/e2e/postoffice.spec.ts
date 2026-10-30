@@ -11,8 +11,9 @@ test("landing and protected routes never expose account data", async ({
     path: `test-results/screenshots/${test.info().project.name}-landing.png`,
     fullPage: true,
   });
-  await page.goto("/postoffice");
-  await expect(page).toHaveURL(/notice=setup|auth\/login/);
+  const protectedPage = await request.get("/postoffice", { maxRedirects: 0 });
+  expect(protectedPage.status()).toBe(307);
+  expect(protectedPage.headers().location).toMatch(/notice=setup|auth\/login/);
   const response = await request.get("/api/state");
   expect([401, 503]).toContain(response.status());
   const blocked = await request.post("/api/letters", {
