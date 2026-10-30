@@ -26,3 +26,10 @@ update public.letters set created_at='2025-01-14T00:00:00Z' where direction='TO_
 set role anon;
 do $$begin begin perform * from public.cats;raise exception 'anonymous read allowed';exception when insufficient_privilege then null;end;end;$$;
 reset role;
+-- Public APIs must remain invoker wrappers; privileged code stays unexposed.
+do $$begin
+ if exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prosecdef) then raise exception 'privileged function exposed';end if;
+ if has_function_privilege('anon','private.save_cat(text,text,text,text,text[],integer)','execute') then raise exception 'anonymous private RPC allowed';end if;
+ if has_function_privilege('authenticated','private.claim_letter_jobs(integer,timestamptz)','execute') then raise exception 'client private job claim allowed';end if;
+ if to_regclass('public.letters_cat_user_idx') is null then raise exception 'missing FK index';end if;
+end;$$;
