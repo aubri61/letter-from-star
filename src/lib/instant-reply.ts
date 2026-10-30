@@ -59,13 +59,28 @@ export async function createInstantReply(
   } catch (error) {
     await store.fail(claim.lease_token).catch(() => {});
     if (error instanceof InstantReplyError) throw error;
-    if (error instanceof Error && error.message === "groq_http_429")
+    if (
+      error instanceof Error &&
+      /^(groq|gemini)_http_429$/.test(error.message)
+    )
       throw new InstantReplyError(
-        "Groq 요청이 많아요. 잠시 후 다시 시도해 주세요.",
+        "답장 요청이 많아요. 잠시 후 다시 시도해 주세요.",
         429,
       );
-    if (error instanceof Error && /^groq_http_40[13]$/.test(error.message))
-      throw new InstantReplyError("Groq API 키와 이용 권한을 확인해 주세요.");
+    if (
+      error instanceof Error &&
+      /^(groq|gemini)_http_40[13]$/.test(error.message)
+    )
+      throw new InstantReplyError(
+        "답장 서비스의 API 키와 이용 권한을 확인해 주세요.",
+      );
+    if (
+      error instanceof Error &&
+      /^(groq|gemini)_http_50[0234]$/.test(error.message)
+    )
+      throw new InstantReplyError(
+        "답장 서버가 잠시 혼잡해요. 잠시 후 다시 시도해 주세요.",
+      );
     throw new InstantReplyError(
       "답장을 완성하지 못했어요. 잠시 후 다시 시도해 주세요.",
     );

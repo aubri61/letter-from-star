@@ -1,7 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2.98.0";
 import { processBatch, type JobStore, type Job } from "../_shared/worker.ts";
 import {
-  DEFAULT_GROQ_MODEL,
+  aiConfig,
+  generateConfiguredLetter,
   type MemoryContext,
 } from "../_shared/generation.ts";
 Deno.serve(async (request: Request) => {
@@ -10,10 +11,10 @@ Deno.serve(async (request: Request) => {
   const secret = Deno.env.get("LETTER_CRON_SECRET");
   if (!secret || request.headers.get("x-letter-cron-secret") !== secret)
     return new Response("Unauthorized", { status: 401 });
-  const key = Deno.env.get("GROQ_API_KEY"),
-    url = Deno.env.get("SUPABASE_URL"),
+  const config = aiConfig((name) => Deno.env.get(name));
+  const url = Deno.env.get("SUPABASE_URL"),
     service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!key || !url || !service)
+  if (!config.key || !url || !service)
     return new Response("Worker is not configured", { status: 503 });
   const db = createClient(url, service, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -80,10 +81,8 @@ Deno.serve(async (request: Request) => {
   };
   try {
     return Response.json(
-      await processBatch(
-        store,
-        key,
-        Deno.env.get("GROQ_MODEL") || DEFAULT_GROQ_MODEL,
+      await processBatch(store, config.key, config.model, (context) =>
+        generateConfiguredLetter(context, config),
       ),
     );
   } catch {

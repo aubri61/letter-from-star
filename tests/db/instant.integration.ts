@@ -104,3 +104,35 @@ test("daily instant generation attempts are bounded across different sent letter
     } else assert.equal(request.status, "limited");
   }
 });
+test("Gemini and Groq replies coexist for one source and are independently idempotent", async () => {
+  const source = await sql(
+    "select source_letter_id from private.instant_reply_requests where provider='groq' and status='completed' order by source_letter_id limit 1",
+  );
+  const groq = JSON.parse(await sql(claim(source)));
+  const request = `set role service_role; select public.claim_instant_reply('${user}','${source}','gemini')`;
+  const gemini = JSON.parse(await sql(request));
+  assert.equal(gemini.status, "claimed");
+  const saved = await sql(
+    `set role service_role; select public.finish_instant_reply('${user}','${source}','${gemini.lease_token}','집사야, 편지 받았어!','${"앞발로 편지를 꼭 붙잡고 읽었어. 네가 말한 창가의 햇살이 떠올라 귀가 쫑긋했다니까! ".repeat(4)}','gemini','gemini-2.5-flash')`,
+  );
+  assert.ok(saved);
+  assert.notEqual(saved, groq.reply_id);
+  assert.equal(JSON.parse(await sql(request)).reply_id, saved);
+  assert.equal(JSON.parse(await sql(claim(source))).reply_id, groq.reply_id);
+  assert.equal(
+    await sql(
+      `select count(*) from public.letters where reply_to_letter_id='${source}'`,
+    ),
+    "2",
+  );
+  assert.equal(
+    await sql(`select ai_model from public.letters where id='${saved}'`),
+    "gemini-2.5-flash",
+  );
+  await assert.rejects(
+    sql(
+      `set role authenticated; select public.claim_instant_reply('${user}','${source}','gemini')`,
+    ),
+    /permission denied/,
+  );
+});

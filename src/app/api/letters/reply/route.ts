@@ -5,10 +5,13 @@ import {
   InstantReplyError,
   type InstantReplyStore,
 } from "@/lib/instant-reply";
-import { DEFAULT_GROQ_MODEL } from "../../../../../supabase/functions/_shared/generation";
+import {
+  aiConfig,
+  generateConfiguredLetter,
+} from "../../../../../supabase/functions/_shared/generation";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 90;
 
 export async function POST(request: Request) {
   try {
@@ -32,18 +35,22 @@ export async function POST(request: Request) {
       .maybeSingle();
     if (error) throw error;
     if (!source) throw new ApiError("답장받을 편지를 찾지 못했어요.", 404);
-    const key = process.env.GROQ_API_KEY;
+    const config = aiConfig((name) => process.env[name]);
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!key || !serviceKey || !url)
+    if (!config.key || !serviceKey || !url)
       throw new ApiError(
-        "서버의 Groq 키와 Supabase 서버 키 설정이 필요해요.",
+        "서버의 답장 서비스 키와 Supabase 서버 키 설정이 필요해요.",
         503,
       );
     const admin = createClient(url, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const args = { p_user: user.id, p_source: source.id };
+    const args = {
+      p_user: user.id,
+      p_source: source.id,
+      p_provider: config.provider,
+    };
     const store: InstantReplyStore = {
       async claim() {
         const result = await admin.rpc("claim_instant_reply", args);
@@ -85,6 +92,7 @@ export async function POST(request: Request) {
           p_lease: lease,
           p_title: letter.title,
           p_content: letter.content,
+          p_model: config.model,
         });
         if (result.error) throw new Error("reply_save_failed");
         return result.data as string | null;
@@ -95,14 +103,16 @@ export async function POST(request: Request) {
           p_lease: lease,
           p_title: null,
           p_content: null,
+          p_model: config.model,
         });
         if (result.error) throw new Error("reply_release_failed");
       },
     };
     const result = await createInstantReply(
       store,
-      key,
-      process.env.GROQ_MODEL || DEFAULT_GROQ_MODEL,
+      config.key,
+      config.model,
+      (context) => generateConfiguredLetter(context, config),
     );
     return Response.json(result, {
       headers: { "Cache-Control": "private, no-store" },

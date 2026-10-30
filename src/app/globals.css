@@ -2076,3 +2076,30 @@ textarea::placeholder {
   font-size: 13px;
   max-width: 320px;
 }
+.reply-versions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  max-width: 760px;
+  margin: 0 auto 18px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.reply-versions a {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  text-decoration: none;
+  color: var(--brown);
+}
+.reply-versions a[aria-current="page"] {
+  background: #ede8d9;
+  border-color: var(--green);
+}
+.reading-action-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}

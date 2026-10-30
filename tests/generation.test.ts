@@ -6,6 +6,8 @@ import {
   generateLetter,
   type MemoryContext,
   SYSTEM_PROMPT,
+  aiConfig,
+  generateConfiguredLetter,
 } from "../supabase/functions/_shared/generation";
 import {
   processBatch,
@@ -33,6 +35,80 @@ test("AI context has bounded byte budget and no photo payload", () => {
   assert.ok(new TextEncoder().encode(prompt).length <= 14000);
   assert.ok(!prompt.includes("storage_path"));
   assert.equal(JSON.parse(prompt).name, "별이");
+});
+test("Gemini uses its own endpoint, selected letter and JSON output configuration", async () => {
+  const replyTo = {
+    title: "집사의 편지",
+    content: "너랑 종이봉투로 놀던 게 떠올라!",
+  };
+  const config = aiConfig(
+    (name) => ({ GEMINI_API_KEY: "test-gemini-key" })[name as "GEMINI_API_KEY"],
+  );
+  assert.equal(config.provider, "gemini");
+  const result = await generateConfiguredLetter(
+    { ...context, replyTo },
+    config,
+    async (url, options) => {
+      assert.equal(
+        url,
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
+      );
+      assert.equal(
+        (options!.headers as Record<string, string>)["x-goog-api-key"],
+        "test-gemini-key",
+      );
+      const body = JSON.parse(options!.body as string);
+      assert.equal(body.generationConfig.responseMimeType, "application/json");
+      assert.deepEqual(
+        JSON.parse(body.contents[0].parts[0].text).reply_to,
+        replyTo,
+      );
+      assert.match(body.systemInstruction.parts[0].text, /고별/);
+      return Response.json({
+        candidates: [
+          {
+            finishReason: "STOP",
+            content: { parts: [{ text: JSON.stringify(letter) }] },
+          },
+        ],
+      });
+    },
+  );
+  assert.deepEqual(result, letter);
+});
+test("Gemini rejects quota errors, blocked answers and malformed JSON", async () => {
+  const config = {
+    provider: "gemini" as const,
+    key: "test",
+    model: "gemini-2.5-flash",
+  };
+  await assert.rejects(
+    generateConfiguredLetter(
+      context,
+      config,
+      async () => new Response("", { status: 429 }),
+    ),
+    /gemini_http_429/,
+  );
+  await assert.rejects(
+    generateConfiguredLetter(context, config, async () =>
+      Response.json({ candidates: [{ finishReason: "SAFETY" }] }),
+    ),
+    /incomplete_output/,
+  );
+  await assert.rejects(
+    generateConfiguredLetter(context, config, async () =>
+      Response.json({
+        candidates: [
+          {
+            finishReason: "STOP",
+            content: { parts: [{ text: "broken json" }] },
+          },
+        ],
+      }),
+    ),
+    /invalid_json/,
+  );
 });
 test("AI output validates structure, Korean and length", () => {
   assert.deepEqual(validateGenerated(letter), letter);

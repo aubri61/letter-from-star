@@ -186,6 +186,21 @@ export function Postoffice({
   const link = (suffix: string) => base + suffix;
   const latestSent = state?.letters.find((l) => l.direction === "TO_CAT");
   const canReplyNow = !preview && state?.instantReplyEnabled;
+  const providerLabel = state?.aiProvider === "groq" ? "Groq" : "Gemini";
+  const currentLetter = state?.letters.find((l) => l.id === screen[1]);
+  const replySource =
+    currentLetter?.direction === "TO_CAT"
+      ? currentLetter.id
+      : currentLetter?.reply_to_letter_id;
+  const replyVersions =
+    state?.letters.filter(
+      (l) => !!replySource && l.reply_to_letter_id === replySource,
+    ) || [];
+  const replyForProvider = (sourceId: string) =>
+    state?.letters.find(
+      (l) =>
+        l.reply_to_letter_id === sourceId && l.ai_provider === state.aiProvider,
+    );
   const requestReply = async (letterId: string) => {
     const result = await api("/api/letters/reply", {
       method: "POST",
@@ -434,12 +449,11 @@ export function Postoffice({
                       <ReplyNowButton
                         sourceId={latestSent.id}
                         onReply={requestReply}
+                        providerLabel={providerLabel}
                         replyHref={
-                          state.letters.find(
-                            (l) => l.reply_to_letter_id === latestSent.id,
-                          )
+                          replyForProvider(latestSent.id)
                             ? link(
-                                `/letters/${state.letters.find((l) => l.reply_to_letter_id === latestSent.id)!.id}`,
+                                `/letters/${replyForProvider(latestSent.id)!.id}`,
                               )
                             : undefined
                         }
@@ -710,11 +724,11 @@ export function Postoffice({
                 onRead={markRead}
                 onError={notify}
                 onReply={canReplyNow ? requestReply : undefined}
+                providerLabel={providerLabel}
+                replyVersions={replyVersions}
                 replyHref={
-                  state.letters.find((l) => l.reply_to_letter_id === screen[1])
-                    ? link(
-                        `/letters/${state.letters.find((l) => l.reply_to_letter_id === screen[1])!.id}`,
-                      )
+                  replySource && replyForProvider(replySource)
+                    ? link(`/letters/${replyForProvider(replySource)!.id}`)
                     : undefined
                 }
                 previous={state.letters
@@ -838,7 +852,6 @@ export function Postoffice({
         <span>
           <Icon name="paw" size={14} /> 기억은 오래, 마음은 가까이.
         </span>
-        <span>AI가 추억을 바탕으로 상상한 편지입니다.</span>
       </footer>
       <div className="toast-region" aria-live="polite" aria-atomic="true">
         {toast && (

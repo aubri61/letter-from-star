@@ -7,10 +7,12 @@ export function ReplyNowButton({
   sourceId,
   onReply,
   replyHref,
+  providerLabel = "Gemini",
 }: {
   sourceId: string;
   onReply: (id: string) => Promise<void>;
   replyHref?: string;
+  providerLabel?: string;
 }) {
   const pending = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -18,7 +20,7 @@ export function ReplyNowButton({
   if (replyHref)
     return (
       <Link className="button secondary" href={replyHref}>
-        도착한 답장 보기
+        {providerLabel} 답장 보기
       </Link>
     );
   return (
@@ -47,7 +49,9 @@ export function ReplyNowButton({
         }}
       >
         <Icon name="mail" size={17} />
-        {busy ? "고양이가 답장을 쓰고 있어요…" : "바로 답장 받기"}
+        {busy
+          ? "고양이가 답장을 쓰고 있어요…"
+          : `${providerLabel}로 바로 답장 받기`}
       </button>
       {busy && (
         <span className="reply-now-hint" role="status">

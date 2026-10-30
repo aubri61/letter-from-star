@@ -23,6 +23,8 @@ export type Letter = {
   created_at: string;
   delivery_date: string | null;
   reply_to_letter_id?: string | null;
+  ai_provider?: "groq" | "gemini" | null;
+  ai_model?: string | null;
 };
 export type PostofficeState = {
   cat: Cat | null;
@@ -31,6 +33,7 @@ export type PostofficeState = {
   userName: string;
   generating: boolean;
   instantReplyEnabled?: boolean;
+  aiProvider?: "groq" | "gemini";
 };
 export const MAX_PHOTOS = 5;
 export const MAX_PHOTO_SIZE = 5 * 1024 * 1024;

@@ -1,5 +1,6 @@
 import { requireUser, apiFailure } from "@/lib/api";
 import type { Cat, Letter, Photo, PostofficeState } from "@/lib/domain";
+import { aiConfig } from "../../../../supabase/functions/_shared/generation";
 export const dynamic = "force-dynamic";
 export async function GET() {
   try {
@@ -60,6 +61,7 @@ export async function GET() {
       dailyEnabled: preferences.data?.daily_letters_enabled ?? false,
       userName: user.user_metadata?.full_name?.split(" ")[0] || "집사",
       generating: !!jobs.data?.length,
+      aiProvider: aiConfig((name) => process.env[name]).provider,
       instantReplyEnabled:
         process.env.ENABLE_INSTANT_REPLY === "true" ||
         (process.env.NODE_ENV === "development" &&
