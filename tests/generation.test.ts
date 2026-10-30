@@ -5,6 +5,7 @@ import {
   validateGenerated,
   generateLetter,
   type MemoryContext,
+  SYSTEM_PROMPT,
 } from "../supabase/functions/_shared/generation";
 import {
   processBatch,
@@ -29,7 +30,7 @@ const letter = {
 };
 test("AI context has bounded byte budget and no photo payload", () => {
   const prompt = boundContext(context);
-  assert.ok(new TextEncoder().encode(prompt).length <= 6000);
+  assert.ok(new TextEncoder().encode(prompt).length <= 14000);
   assert.ok(!prompt.includes("storage_path"));
   assert.equal(JSON.parse(prompt).name, "별이");
 });
@@ -44,7 +45,7 @@ test("AI output validates structure, Korean and length", () => {
   ])
     assert.throws(() => validateGenerated(bad));
 });
-test("OpenAI failure and truncation never return generated letter", async () => {
+test("Groq failure and truncation never return generated letter", async () => {
   await assert.rejects(
     generateLetter(
       context,
@@ -52,7 +53,7 @@ test("OpenAI failure and truncation never return generated letter", async () => 
       "test",
       async () => new Response("", { status: 429 }),
     ),
-    /openai_http_429/,
+    /groq_http_429/,
   );
   await assert.rejects(
     generateLetter(context, "fake-test-key", "test", async () =>
@@ -66,6 +67,41 @@ test("OpenAI failure and truncation never return generated letter", async () => 
       }),
     ),
     /incomplete_output/,
+  );
+});
+test("Groq receives the selected letter, memories and lively reply instructions", async () => {
+  const replyTo = {
+    title: "오늘의 편지",
+    content: "함께했던 창가가 생각났어. 오늘도 좋아해. ".repeat(65),
+  };
+  await generateLetter(
+    { ...context, replyTo },
+    "test-key",
+    "groq-test",
+    async (url, options) => {
+      assert.equal(url, "https://api.groq.com/openai/v1/chat/completions");
+      const body = JSON.parse(options!.body as string);
+      assert.equal(body.model, "groq-test");
+      assert.equal(body.response_format.type, "json_schema");
+      assert.equal(body.reasoning_effort, "none");
+      assert.ok(body.max_completion_tokens <= 1800);
+      assert.match(SYSTEM_PROMPT, /발랄/);
+      assert.match(SYSTEM_PROMPT, /reply_to/);
+      const input = JSON.parse(body.messages[1].content);
+      assert.deepEqual(input.reply_to, replyTo);
+      assert.ok(input.memories.includes("함께한 오후"));
+      assert.ok(
+        new TextEncoder().encode(body.messages[1].content).length <= 14000,
+      );
+      return Response.json({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: { content: JSON.stringify(letter) },
+          },
+        ],
+      });
+    },
   );
 });
 test("worker records AI failure, keeps secrets and personal data out of error codes", async () => {
